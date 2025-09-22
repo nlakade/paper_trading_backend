@@ -1,0 +1,471 @@
+{
+  "info": {
+    "name": "Paper Trading API",
+    "_postman_id": "paper-trading-api-uuid",
+    "description": "API collection for the Paper Trading Platform backend. Request/Response examples included.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"John Doe\",\"email\":\"john@example.com\",\"phone\":\"1234567890\",\"password\":\"pass123\"}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/auth/register",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5000",
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Request Example: {\"name\":\"John Doe\",\"email\":\"john@example.com\",\"phone\":\"9876543210\",\"password\":\"pass123\"}\nResponse Example: {\"message\":\"User registered\",\"client_id\":\"john@example.com\"} - 201 Created"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\":\"john@example.com\",\"password\":\"pass123\"}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/auth/login",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5000",
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Request Example: {\"email\":\"john@example.com\",\"password\":\"pass123\"}\nResponse Example: {\"access_token\":\"<jwt_token>\",\"client_id\":\"john@example.com\"} - 200 OK"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.environment.set('jwt_token', pm.response.json().access_token);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Portfolio",
+      "item": [
+        {
+          "name": "Create Portfolio",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/portfolio/create",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5000",
+              "path": [
+                "portfolio",
+                "create"
+              ]
+            },
+            "description": "Request Example: {}\nResponse Example: {\"portfolio_id\":\"<id>\",\"user_id\":\"john@example.com\",\"available_margin\":1000000.0,\"utilized_margin\":0.0,\"total_pnl\":0.0,\"created_at\":\"2025-09-19T13:41:00.000Z\"} - 201 Created"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Portfolio",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:5000/portfolio/{{user_id}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5000",
+              "path": [
+                "portfolio",
+                "{{user_id}}"
+              ]
+            },
+            "description": "Request Example: GET /portfolio/john@example.com\nResponse Example: {\"portfolio_id\":\"<id>\",\"user_id\":\"john@example.com\",\"available_margin\":1000000.0,\"utilized_margin\":0.0,\"total_pnl\":0.0,\"created_at\":\"2025-09-19T13:41:00.000Z\"} - 200 OK"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Market",
+      "item": [
+        {
+          "name": "Live Price",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5000/market/live/.NSEI",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5000",
+              "path": [
+                "market",
+                "live",
+                ".NSEI"
+              ]
+            },
+            "description": "Request Example: GET /market/live/.NSEI\nResponse Example: {\"symbol\":\".NSEI\",\"price\":25000.0,\"timestamp\":\"2025-09-19T13:41:00\"} - 200 OK"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Trades",
+      "item": [
+        {
+          "name": "Create Trade",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"symbol\":\".NSEI\",\"trade_type\":\"BUY\",\"quantity\":10,\"stop_loss\":20000,\"target_price\":22000}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/trades/create",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5000",
+              "path": [
+                "trades",
+                "create"
+              ]
+            },
+            "description": "Request Example: {\"symbol\":\".NSEI\",\"trade_type\":\"BUY\",\"quantity\":10,\"stop_loss\":20000,\"target_price\":22000}\nResponse Example: {\"trade_id\":\"<id>\",\"user_id\":\"john@example.com\",\"symbol\":\".NSEI\",\"trade_type\":\"BUY\",\"quantity\":10,\"entry_price\":25000.0,\"stop_loss\":20000,\"target_price\":22000,\"status\":\"active\",\"created_at\":\"2025-09-19T13:41:00.000Z\"} - 201 Created"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    pm.environment.set('trade_id', pm.response.json().trade_id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Exit Trade",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:5000/trades/exit/{{trade_id}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5000",
+              "path": [
+                "trades",
+                "exit",
+                "{{trade_id}}"
+              ]
+            },
+            "description": "Request Example: POST /trades/exit/<trade_id>\nResponse Example: {\"message\":\"Trade exited\",\"pnl\":0.0} - 200 OK"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Exit All Trades",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:5000/trades/exit-all/{{user_id}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5000",
+              "path": [
+                "trades",
+                "exit-all",
+                "{{user_id}}"
+              ]
+            },
+            "description": "Request Example: POST /trades/exit-all/john@example.com\nResponse Example: {\"message\":\"All trades exited\",\"total_pnl\":0.0} - 200 OK"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Trade Performance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:5000/trades/performance/{{user_id}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5000",
+              "path": [
+                "trades",
+                "performance",
+                "{{user_id}}"
+              ]
+            },
+            "description": "Request Example: GET /trades/performance/john@example.com\nResponse Example: {\"active_pnl\":0.0,\"total_pnl\":0.0,\"margin_utilization_pct\":0.0,\"margin_utilization_abs\":0.0,\"available_margin\":1000000.0} - 200 OK"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "Send Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"event\":\"manual_notification\",\"message\":\"Test notification\"}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/notifications",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5000",
+              "path": [
+                "notifications"
+              ]
+            },
+            "description": "Request Example: {\"event\":\"manual_notification\",\"message\":\"Test notification\"}\nResponse Example: {\"message\":\"Notification sent\"} - 200 OK"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "jwt_token",
+      "value": ""
+    },
+    {
+      "key": "user_id",
+      "value": "john@example.com"
+    },
+    {
+      "key": "trade_id",
+      "value": ""
+    }
+  ]
+}
