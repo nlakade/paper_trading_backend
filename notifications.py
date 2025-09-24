@@ -11,7 +11,6 @@ from email.mime.multipart import MIMEMultipart
 notifications_bp = Blueprint('notifications', __name__)
 logger = logging.getLogger(__name__)
 
-# Initialize Twilio client with error handling
 try:
     if hasattr(Config, 'TWILIO_ACCOUNT_SID') and hasattr(Config, 'TWILIO_AUTH_TOKEN'):
         twilio_client = Client(Config.TWILIO_ACCOUNT_SID, Config.TWILIO_AUTH_TOKEN)
@@ -23,7 +22,6 @@ except Exception as e:
     twilio_client = None
 
 def send_email(to_email, subject, message):
-    """Send email notification"""
     try:
         if not all([hasattr(Config, 'SMTP_SERVER'), hasattr(Config, 'SMTP_PORT'), 
                    hasattr(Config, 'SMTP_USERNAME'), hasattr(Config, 'SMTP_PASSWORD')]):
@@ -49,7 +47,6 @@ def send_email(to_email, subject, message):
         return False
 
 def send_sms(to_phone, message):
-    """Send SMS notification"""
     try:
         if not twilio_client:
             logger.warning("Twilio client not available")
@@ -67,20 +64,17 @@ def send_sms(to_phone, message):
         return False
 
 def send_notification(user_id, notification_type, message):
-    """Helper function to send notifications (not a route)"""
     try:
-        user = User.find_by_client_id(user_id)  # Use find_by_client_id since user_id is email
+        user = User.find_by_client_id(user_id)  
         if not user:
             logger.error(f"User {user_id} not found for notification")
             return False
 
-        # Create notification record
         notification_id = Notification.create(user_id, notification_type, message)
         if not notification_id:
             logger.error(f"Failed to create notification record for user {user_id}")
             return False
 
-        # Send email and SMS
         email_sent = False
         sms_sent = False
         
@@ -101,7 +95,6 @@ def send_notification(user_id, notification_type, message):
 @notifications_bp.route('/', methods=['POST'])
 @jwt_required()
 def send_notification_route():
-    """API endpoint to send notifications"""
     try:
         user_id = get_jwt_identity()
         data = request.get_json()
@@ -132,13 +125,11 @@ def send_notification_route():
 @notifications_bp.route('/history', methods=['GET'])
 @jwt_required()
 def get_notification_history():
-    """Get user's notification history"""
     try:
         user_id = get_jwt_identity()
         page = request.args.get('page', 1, type=int)
         limit = request.args.get('limit', 20, type=int)
         
-        # Validate pagination parameters
         if page < 1:
             page = 1
         if limit < 1 or limit > 100:
@@ -159,7 +150,6 @@ def get_notification_history():
 @notifications_bp.route('/<int:notification_id>/read', methods=['PUT'])
 @jwt_required()
 def mark_notification_read(notification_id):
-    """Mark a notification as read"""
     try:
         user_id = get_jwt_identity()
         
@@ -177,7 +167,6 @@ def mark_notification_read(notification_id):
 @notifications_bp.route('/unread-count', methods=['GET'])
 @jwt_required()
 def get_unread_count():
-    """Get count of unread notifications"""
     try:
         user_id = get_jwt_identity()
         count = Notification.get_unread_count(user_id)
@@ -188,7 +177,5 @@ def get_unread_count():
         logger.error(f"Error getting unread count: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
-# Function to be used by other modules (like trades.py)
 def notify_user(user_id, notification_type, message):
-    """Function to be called by other modules to send notifications"""
     return send_notification(user_id, notification_type, message)
