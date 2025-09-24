@@ -82,7 +82,6 @@ def update_portfolio_margin(user_id, margin_change, pnl_change=0):
             utilized_margin = portfolio['utilized_margin'] + margin_change
             total_pnl = portfolio['total_pnl'] + pnl_change
             
-            # Ensure non-negative values
             available_margin = max(0, available_margin)
             utilized_margin = max(0, utilized_margin)
             
