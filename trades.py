@@ -58,7 +58,7 @@ def create_trade():
         price_data = json.loads(price_response.get_data(as_text=True))
         current_price = price_data['price']
         
-        margin_required = current_price * quantity * 0.2  # 20% margin
+        margin_required = current_price * quantity * 0.2  
         
         if portfolio['available_margin'] < margin_required:
             return jsonify({
@@ -81,7 +81,6 @@ def create_trade():
         
         trade_id = str(trade_result.inserted_id)
         
-        # Update portfolio margin
         new_available_margin = portfolio['available_margin'] - margin_required
         new_utilized_margin = portfolio['utilized_margin'] + margin_required
         
@@ -211,7 +210,6 @@ def exit_all_trades(email):
             trade_id = str(trade['_id'])
             
             try:
-                # Get current market price
                 price_response, status_code = get_live_price(trade['symbol'])
                 if status_code != 200:
                     logger.error(f"Failed to fetch price for {trade['symbol']} in trade {trade_id}")
@@ -228,7 +226,6 @@ def exit_all_trades(email):
                 price_data = json.loads(price_response.get_data(as_text=True))
                 exit_price = price_data['price']
                 
-                # Calculate PnL
                 if trade['trade_type'] == 'BUY':
                     pnl = (exit_price - trade['entry_price']) * trade['quantity']
                 else:
@@ -236,7 +233,6 @@ def exit_all_trades(email):
                 
                 total_pnl += pnl
                 
-                # Update trade status
                 updates = {
                     'status': 'CLOSED',
                     'current_price': exit_price,
@@ -275,7 +271,6 @@ def exit_all_trades(email):
                 })
                 failed_exits += 1
         
-        # Send summary notification
         try:
             send_notification_helper(
                 email, 
@@ -404,7 +399,6 @@ def monitor_active_trades():
                     }
                     Trade.update(trade_id, updates)
                     
-                    # Get user_id from trade (which is the email/client_id)
                     user_id = trade.get('user_id')
                     if user_id:
                         update_portfolio_margin(user_id, -trade['margin_used'], pnl)
