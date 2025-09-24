@@ -11,7 +11,6 @@ import random
 import pyotp
 import yfinance as yf
 
-# Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -52,11 +51,9 @@ def handle_disconnect():
         logger.info(f"User {user_id} disconnected, sid {request.sid}")
 
 def get_angel_session():
-    """Get or create an Angel One session with rate limiting"""
     global angel_session, request_count, last_request_time
     
     with session_lock:
-        # Rate limit: 3 requests per second
         current_time = time.time()
         if current_time - last_request_time < 1:
             request_count += 1
@@ -102,7 +99,6 @@ def get_angel_session():
             return None
 
 def get_yahoo_price(symbol):
-    """Fetch price from Yahoo Finance as a fallback"""
     try:
         yahoo_symbol = '^BSESN' if symbol == '^BSESN' else symbol
         ticker = yf.Ticker(yahoo_symbol)
@@ -169,7 +165,6 @@ def start_price_polling(app):
     thread.start()
 
 def get_price_via_rest(obj, symbol):
-    """Get price using REST API with the provided session object"""
     try:
         symbol_map = {
             '^NSEI': [('NSE', '99926000')],
@@ -205,7 +200,6 @@ def get_price_via_rest(obj, symbol):
         return last_price_update.get(symbol) or get_mock_price(symbol)
 
 def get_mock_price(symbol):
-    """Return mock price for a symbol"""
     mock_prices = {'^NSEI': 25000.0, '^BSESN': 80000.0}
     if symbol in mock_prices:
         price = mock_prices[symbol] * (1 + random.uniform(-0.01, 0.01))
@@ -214,7 +208,6 @@ def get_mock_price(symbol):
     return None
 
 def use_mock_data(app):
-    """Use mock data for all symbols"""
     for symbol in ['^NSEI', '^BSESN']:
         price = get_mock_price(symbol)
         if price:
@@ -227,7 +220,6 @@ def use_mock_data(app):
                 last_price_update[symbol] = price
 
 def start_websocket(app):
-    """Start price updates using polling"""
     logger.info("Starting price polling with rate limiting")
     start_price_polling(app)
 
