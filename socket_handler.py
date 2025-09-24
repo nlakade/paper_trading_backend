@@ -12,7 +12,7 @@ import pyotp
 import yfinance as yf
 
 # Setup logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 socketio = SocketIO()
@@ -24,7 +24,6 @@ last_price_update = {}
 request_count = 0
 last_request_time = 0
 
-# Check network connectivity
 def check_network():
     try:
         socket.create_connection(("8.8.8.8", 53), timeout=5)
@@ -119,7 +118,6 @@ def get_yahoo_price(symbol):
         return None
 
 def start_price_polling(app):
-    """Poll for prices using REST API with rate limiting"""
     def polling_loop():
         retry_count = 0
         max_retries = 3

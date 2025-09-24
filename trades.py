@@ -24,13 +24,13 @@ stop_monitoring = False
 @jwt_required()
 def create_trade():
     try:
-        client_id = get_jwt_identity()  # This is the email/client_id
+        client_id = get_jwt_identity()  
         user = User.find_by_client_id(client_id)
         
         if not user:
             return jsonify({'error': 'User not found'}), 404
         
-        portfolio = Portfolio.find_by_user_id(client_id)  # Use client_id here
+        portfolio = Portfolio.find_by_user_id(client_id) 
         if not portfolio:
             return jsonify({'error': 'Portfolio not found. Please create a portfolio first.'}), 404
 
@@ -44,7 +44,6 @@ def create_trade():
         if data['trade_type'] not in ['BUY', 'SELL']:
             return jsonify({'error': 'Trade type must be BUY or SELL'}), 400
         
-        # Validate quantity
         try:
             quantity = int(data['quantity'])
             if quantity <= 0:
@@ -68,9 +67,8 @@ def create_trade():
                 'required_margin': margin_required
             }), 400
         
-        # Create trade using client_id (email) as user_id
         trade_result = Trade.create(
-            client_id,  # Use client_id directly as user_id
+            client_id, 
             data['symbol'].upper(),
             data['trade_type'],
             quantity,
@@ -88,7 +86,7 @@ def create_trade():
         new_utilized_margin = portfolio['utilized_margin'] + margin_required
         
         Portfolio.update_margin(
-            client_id,  # Use client_id here
+            client_id,  
             new_available_margin,
             new_utilized_margin,
             portfolio['total_pnl']
@@ -99,7 +97,6 @@ def create_trade():
             'last_checked': datetime.utcnow()
         }
         
-        # Start monitoring if not already running
         start_trade_monitoring()
         
         send_notification_helper(
@@ -127,7 +124,7 @@ def create_trade():
 @jwt_required()
 def exit_trade(trade_id):
     try:
-        client_id = get_jwt_identity()  # Email (string user_id)
+        client_id = get_jwt_identity() 
         user = User.find_by_client_id(client_id)
         
         if not user:
@@ -160,7 +157,6 @@ def exit_trade(trade_id):
         }
         Trade.update(trade_id, updates)
         
-        # Use client_id for portfolio update
         update_portfolio_margin(client_id, -trade['margin_used'], pnl)
         
         if trade_id in active_trades:
@@ -197,68 +193,114 @@ def exit_all_trades(email):
         if not user:
             return jsonify({'error': 'User not found'}), 404
         
-        # Use email directly for finding trades
         active_trades_list = Trade.find_active_by_user_id(email)
+        
+        if not active_trades_list:
+            return jsonify({
+                'message': 'No active trades found',
+                'total_pnl': 0,
+                'results': []
+            }), 200
+        
         results = []
         total_pnl = 0
+        successful_exits = 0
+        failed_exits = 0
         
         for trade in active_trades_list:
             trade_id = str(trade['_id'])
-            price_response, status_code = get_live_price(trade['symbol'])
-            if status_code != 200:
+            
+            try:
+                # Get current market price
+                price_response, status_code = get_live_price(trade['symbol'])
+                if status_code != 200:
+                    logger.error(f"Failed to fetch price for {trade['symbol']} in trade {trade_id}")
+                    results.append({
+                        'trade_id': trade_id,
+                        'symbol': trade['symbol'],
+                        'status': 'failed',
+                        'error': 'Failed to fetch market price',
+                        'pnl': 0
+                    })
+                    failed_exits += 1
+                    continue
+                
+                price_data = json.loads(price_response.get_data(as_text=True))
+                exit_price = price_data['price']
+                
+                # Calculate PnL
+                if trade['trade_type'] == 'BUY':
+                    pnl = (exit_price - trade['entry_price']) * trade['quantity']
+                else:
+                    pnl = (trade['entry_price'] - exit_price) * trade['quantity']
+                
+                total_pnl += pnl
+                
+                # Update trade status
+                updates = {
+                    'status': 'CLOSED',
+                    'current_price': exit_price,
+                    'pnl': pnl,
+                    'closed_at': datetime.utcnow()
+                }
+                Trade.update(trade_id, updates)
+                
+                update_portfolio_margin(email, -trade['margin_used'], pnl)
+                
+                if trade_id in active_trades:
+                    del active_trades[trade_id]
+                
                 results.append({
                     'trade_id': trade_id,
-                    'status': 500,
-                    'message': {'error': 'Failed to fetch price'}
+                    'symbol': trade['symbol'],
+                    'trade_type': trade['trade_type'],
+                    'quantity': trade['quantity'],
+                    'entry_price': trade['entry_price'],
+                    'exit_price': exit_price,
+                    'pnl': round(pnl, 2),
+                    'status': 'success'
                 })
-                continue
-            
-            price_data = json.loads(price_response.get_data(as_text=True))
-            exit_price = price_data['price']
-            
-            if trade['trade_type'] == 'BUY':
-                pnl = (exit_price - trade['entry_price']) * trade['quantity']
-            else:
-                pnl = (trade['entry_price'] - exit_price) * trade['quantity']
-            
-            total_pnl += pnl
-            
-            updates = {
-                'status': 'CLOSED',
-                'current_price': exit_price,
-                'pnl': pnl,
-                'closed_at': datetime.utcnow()
-            }
-            Trade.update(trade_id, updates)
-            
-            update_portfolio_margin(email, -trade['margin_used'], pnl)
-            
-            if trade_id in active_trades:
-                del active_trades[trade_id]
-            
-            results.append({
-                'trade_id': trade_id,
-                'status': 200,
-                'message': {'message': 'Trade exited', 'pnl': pnl}
-            })
+                
+                successful_exits += 1
+                logger.info(f"Successfully exited trade {trade_id} for user {email} with PnL: {pnl}")
+                
+            except Exception as trade_error:
+                logger.error(f"Error exiting individual trade {trade_id}: {str(trade_error)}")
+                results.append({
+                    'trade_id': trade_id,
+                    'symbol': trade.get('symbol', 'Unknown'),
+                    'status': 'failed',
+                    'error': f'Error processing trade: {str(trade_error)}',
+                    'pnl': 0
+                })
+                failed_exits += 1
         
-        send_notification_helper(
-            email, 
-            'EMAIL', 
-            f"All trades exited. Total PnL: {total_pnl}"
-        )
+        # Send summary notification
+        try:
+            send_notification_helper(
+                email, 
+                'TRADES_EXITED', 
+                f"Exit all trades completed: {successful_exits} successful, {failed_exits} failed. Total PnL: ₹{total_pnl:.2f}"
+            )
+        except Exception as notification_error:
+            logger.error(f"Failed to send notification: {str(notification_error)}")
         
-        logger.info(f"All trades exited for user: {email}")
+        logger.info(f"Exit all trades completed for user: {email}. Total PnL: {total_pnl}")
         
         return jsonify({
             'message': 'Exit all trades completed',
-            'total_pnl': total_pnl,
+            'total_pnl': round(total_pnl, 2),
+            'successful_exits': successful_exits,
+            'failed_exits': failed_exits,
             'results': results
         }), 200
         
     except Exception as e:
         logger.error(f"Exit all trades error: {str(e)}")
-        return jsonify({'error': 'Internal server error'}), 500
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
 
 
 @trades_bp.route('/performance/<email>', methods=['GET'])
@@ -273,7 +315,6 @@ def get_trade_performance(email):
         if not user:
             return jsonify({'error': 'User not found'}), 404
         
-        # Use email directly for finding trades
         trades = Trade.find_by_user_id(email)
         
         total_trades = len(trades)
@@ -392,17 +433,15 @@ def monitor_active_trades():
 
 
 def update_portfolio_margin(user_id, margin_change, pnl_change=0):
-    """Update portfolio margins and PnL"""
+
     try:
         portfolio = Portfolio.find_by_user_id(user_id)
         if portfolio:
-            # When closing a trade, margin_change will be negative (returning margin)
-            # So we add it to available_margin and subtract from utilized_margin
+            
             available_margin = portfolio['available_margin'] - margin_change
             utilized_margin = portfolio['utilized_margin'] + margin_change
             total_pnl = portfolio['total_pnl'] + pnl_change
             
-            # Ensure non-negative values
             available_margin = max(0, available_margin)
             utilized_margin = max(0, utilized_margin)
             

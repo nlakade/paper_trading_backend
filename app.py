@@ -42,6 +42,6 @@ if __name__ == '__main__':
     websocket_thread.start()
     
     try:
-        socketio.run(app, debug=True, host='0.0.0.0', port=5000)
+        socketio.run(app, debug=False, host='0.0.0.0', port=5000)
     except KeyboardInterrupt:
         logger.info("Server stopped")
