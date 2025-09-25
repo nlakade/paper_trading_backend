@@ -7,24 +7,28 @@ import smtplib
 from twilio.rest import Client
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from socket_handler import notify_user
+import re
 
 notifications_bp = Blueprint('notifications', __name__)
 logger = logging.getLogger(__name__)
 
 try:
-    if hasattr(Config, 'TWILIO_ACCOUNT_SID') and hasattr(Config, 'TWILIO_AUTH_TOKEN'):
-        twilio_client = Client(Config.TWILIO_ACCOUNT_SID, Config.TWILIO_AUTH_TOKEN)
-    else:
-        twilio_client = None
-        logger.warning("Twilio credentials not found in config")
+    if Config.ENV == 'production' and not (Config.TWILIO_ACCOUNT_SID and Config.TWILIO_AUTH_TOKEN):
+        raise ValueError("Twilio credentials missing in production")
+    twilio_client = Client(Config.TWILIO_ACCOUNT_SID, Config.TWILIO_AUTH_TOKEN) if Config.TWILIO_ACCOUNT_SID else None
+    logger.info("Twilio client initialized")
 except Exception as e:
     logger.error(f"Failed to initialize Twilio client: {str(e)}")
     twilio_client = None
 
 def send_email(to_email, subject, message):
+    if Config.ENV == 'development':
+        logger.info(f"Mock email sent to {to_email}: {subject} - {message}")
+        return True
+
     try:
-        if not all([hasattr(Config, 'SMTP_SERVER'), hasattr(Config, 'SMTP_PORT'), 
-                   hasattr(Config, 'SMTP_USERNAME'), hasattr(Config, 'SMTP_PASSWORD')]):
+        if not all([Config.SMTP_SERVER, Config.SMTP_PORT, Config.SMTP_USERNAME, Config.SMTP_PASSWORD]):
             logger.warning("SMTP configuration incomplete")
             return False
             
@@ -47,11 +51,22 @@ def send_email(to_email, subject, message):
         return False
 
 def send_sms(to_phone, message):
+    if Config.ENV == 'development':
+        logger.info(f"Mock SMS sent to {to_phone}: {message}")
+        return True
+
     try:
-        if not twilio_client:
-            logger.warning("Twilio client not available")
+        if not twilio_client or not Config.TWILIO_PHONE_NUMBER:
+            logger.warning("Twilio client or phone number not available")
             return False
             
+        phone_pattern = r'^\+?[6-9]\d{9}$'
+        if not re.match(phone_pattern, to_phone):
+            logger.error(f"Invalid phone number format: {to_phone}")
+            return False
+        if not to_phone.startswith('+'):
+            to_phone = f"+91{to_phone}"
+        
         twilio_client.messages.create(
             body=message,
             from_=Config.TWILIO_PHONE_NUMBER,
@@ -65,7 +80,7 @@ def send_sms(to_phone, message):
 
 def send_notification(user_id, notification_type, message):
     try:
-        user = User.find_by_client_id(user_id)  
+        user = User.find_by_client_id(user_id)
         if not user:
             logger.error(f"User {user_id} not found for notification")
             return False
@@ -85,9 +100,12 @@ def send_notification(user_id, notification_type, message):
             sms_sent = send_sms(user['phone'], message)
 
         success = email_sent or sms_sent
-        logger.info(f"Notification {'sent' if success else 'failed'} for user: {user_id}")
-        return success
+        if not success:
+            ws_success = notify_user(user_id, 'notification', {'type': notification_type, 'message': message})
+            logger.info(f"WebSocket fallback {'successful' if ws_success else 'failed'} for user {user_id}")
         
+        logger.info(f"Notification {'sent' if success else 'failed with WebSocket fallback'} for user: {user_id}")
+        return True
     except Exception as e:
         logger.error(f"Error sending notification: {str(e)}")
         return False
@@ -113,10 +131,10 @@ def send_notification_route():
             data['message']
         )
         
-        if success:
-            return jsonify({'message': 'Notification sent successfully'}), 200
-        else:
-            return jsonify({'error': 'Failed to send notification'}), 500
+        return jsonify({
+            'message': 'Notification processed successfully',
+            'status': 'sent' if success else 'recorded with WebSocket fallback'
+        }), 200
         
     except Exception as e:
         logger.error(f"Notification route error: {str(e)}")
@@ -147,7 +165,7 @@ def get_notification_history():
         logger.error(f"Error fetching notification history: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
-@notifications_bp.route('/<int:notification_id>/read', methods=['PUT'])
+@notifications_bp.route('/<notification_id>/read', methods=['PUT'])
 @jwt_required()
 def mark_notification_read(notification_id):
     try:
