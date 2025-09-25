@@ -23,8 +23,9 @@ def create_portfolio():
         
         initial_margin = request.json.get('initial_margin', 100000.0)
         
-        result = Portfolio.create(client_id, initial_margin)
-        portfolio_id = str(result.inserted_id)
+        portfolio_id = Portfolio.create(client_id, initial_margin)
+        if not portfolio_id:
+            return jsonify({'error': 'Failed to create portfolio'}), 500
         
         logger.info(f"Portfolio created for user: {client_id}")
         
@@ -73,25 +74,20 @@ def get_portfolio(user_id):
         return jsonify({'error': 'Internal server error'}), 500
 
 def update_portfolio_margin(user_id, margin_change, pnl_change=0):
-   
     try:
         portfolio = Portfolio.find_by_user_id(user_id)
-        if portfolio:
-            
-            available_margin = portfolio['available_margin'] - margin_change
-            utilized_margin = portfolio['utilized_margin'] + margin_change
-            total_pnl = portfolio['total_pnl'] + pnl_change
-            
-            available_margin = max(0, available_margin)
-            utilized_margin = max(0, utilized_margin)
-            
-            Portfolio.update_margin(user_id, available_margin, utilized_margin, total_pnl)
-            
-            logger.info(f"Portfolio updated for user: {user_id} - Available: {available_margin}, Utilized: {utilized_margin}, PnL: {total_pnl}")
-            return True
-        else:
+        if not portfolio:
             logger.error(f"Portfolio not found for user: {user_id}")
             return False
+        
+        available_margin = max(0, portfolio['available_margin'] - margin_change)
+        utilized_margin = max(0, portfolio['utilized_margin'] + margin_change)
+        total_pnl = portfolio['total_pnl'] + pnl_change
+        
+        Portfolio.update_margin(user_id, available_margin, utilized_margin, total_pnl)
+        
+        logger.info(f"Portfolio updated for user: {user_id} - Available: {available_margin}, Utilized: {utilized_margin}, PnL: {total_pnl}")
+        return True
     except Exception as e:
         logger.error(f"Portfolio update error for user {user_id}: {str(e)}")
         return False
