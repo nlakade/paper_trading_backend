@@ -70,6 +70,15 @@ Key Features:
    - Set environment variables: `jwt_token`, `user_id` (`john@example.com`), `trade_id`.
    - Run collection runner.
 
+Output :
+
+![Screenshot of console output](https://github.com/nlakade/paper_trading_backend/blob/main/logs/Screenshot_20250925_224411.png)
+
+
+
+
+   
+
 9. **Test WebSocket**:
    - Save as `client.js`:
      ```javascript
