@@ -10,6 +10,8 @@ import time
 import random
 import pyotp
 import yfinance as yf
+import redis
+import json
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -22,6 +24,8 @@ session_lock = Lock()
 last_price_update = {}
 request_count = 0
 last_request_time = 0
+yahoo_request_count = 0
+redis_client = redis.Redis.from_url(Config.REDIS_URL, decode_responses=True)
 
 def check_network():
     try:
@@ -99,15 +103,35 @@ def get_angel_session():
             return None
 
 def get_yahoo_price(symbol):
+    global yahoo_request_count
     try:
-        yahoo_symbol = '^BSESN' if symbol == '^BSESN' else symbol
-        ticker = yf.Ticker(yahoo_symbol)
-        data = ticker.history(period='1d')
-        if not data.empty:
-            price = data['Close'].iloc[-1]
-            logger.info(f"Yahoo Finance price for {symbol}: {price}")
-            return float(price)
-        logger.error(f"No Yahoo Finance data for {symbol}")
+        yahoo_request_count += 1
+        logger.debug(f"Yahoo Finance request #{yahoo_request_count} for {symbol}")
+        
+        cache_key = f"price:{symbol}"
+        cached_price = redis_client.get(cache_key)
+        if cached_price:
+            logger.info(f"Cache hit for {symbol}: {cached_price}")
+            return float(cached_price)
+        
+        for attempt in range(3):
+            try:
+                ticker = yf.Ticker(symbol)
+                data = ticker.history(period='1d')
+                if not data.empty:
+                    price = data['Close'].iloc[-1]
+                    redis_client.setex(cache_key, Config.REDIS_CACHE_TTL, price)
+                    logger.info(f"Yahoo Finance price for {symbol} (attempt {attempt + 1}): {price}")
+                    return float(price)
+                logger.warning(f"No Yahoo Finance data for {symbol} (attempt {attempt + 1})")
+            except Exception as e:
+                if '429' in str(e):
+                    wait_time = min(2 ** attempt * 2, 10)
+                    logger.warning(f"Rate limit (429) for {symbol}, waiting {wait_time}s")
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"Yahoo Finance error for {symbol} (attempt {attempt + 1}): {str(e)}")
+        logger.error(f"No data available for {symbol} after retries")
         return None
     except Exception as e:
         logger.error(f"Yahoo Finance error for {symbol}: {str(e)}")
@@ -166,6 +190,12 @@ def start_price_polling(app):
 
 def get_price_via_rest(obj, symbol):
     try:
+        cache_key = f"price:{symbol}"
+        cached_price = redis_client.get(cache_key)
+        if cached_price:
+            logger.info(f"Cache hit for {symbol}: {cached_price}")
+            return float(cached_price)
+        
         symbol_map = {
             '^NSEI': [('NSE', '99926000')],
             '^BSESN': [('BSE', '1'), ('BSE', '99926009')]
@@ -180,8 +210,9 @@ def get_price_via_rest(obj, symbol):
             for attempt in range(3):
                 quote_data = obj.ltpData(exchange, symbol, token)
                 logger.debug(f"ltpData response for {symbol} (token: {token}): {quote_data}")
-                if quote_data['status'] and 'data' in quote_data:
+                if quote_data['status'] and 'data' in quote_data and 'ltp' in quote_data['data']:
                     price = quote_data['data']['ltp']
+                    redis_client.setex(cache_key, Config.REDIS_CACHE_TTL, price)
                     logger.info(f"Price fetched for {symbol} (token: {token}): {price}")
                     return float(price)
                 error_msg = quote_data.get('message', 'Unknown error')
@@ -203,6 +234,7 @@ def get_mock_price(symbol):
     mock_prices = {'^NSEI': 25000.0, '^BSESN': 80000.0}
     if symbol in mock_prices:
         price = mock_prices[symbol] * (1 + random.uniform(-0.01, 0.01))
+        redis_client.setex(f"price:{symbol}", Config.REDIS_CACHE_TTL, price)
         logger.info(f"Using mock price for {symbol}: {price}")
         return price
     return None
@@ -215,7 +247,8 @@ def use_mock_data(app):
                 socketio.emit('live_price', {
                     'symbol': symbol,
                     'price': price,
-                    'timestamp': datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
+                    'timestamp': datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S'),
+                    'warning': 'Using mock price due to API failure'
                 })
                 last_price_update[symbol] = price
 
@@ -224,4 +257,13 @@ def start_websocket(app):
     start_price_polling(app)
 
 def notify_user(user_id, event, data):
-    socketio.emit('trade_update', {'event': event, 'data': data}, room=user_id)
+    try:
+        if user_id not in user_rooms.values():
+            logger.warning(f"No active WebSocket room for user {user_id}")
+            return False
+        socketio.emit('trade_update', {'event': event, 'data': data}, room=user_id)
+        logger.info(f"WebSocket notification sent to user {user_id} for event {event}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send WebSocket notification to {user_id}: {str(e)}")
+        return False
