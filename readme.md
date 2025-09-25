@@ -72,7 +72,17 @@ Key Features:
 
 Output :
 
-![Screenshot of console output](https://github.com/nlakade/paper_trading_backend/blob/main/logs/Screenshot_20250925_224411.png)
+![Screenshot of console output](https://github.com/nlakade/paper_trading_backend/blob/main/logs/Screenshot_20250925_224411.png)  
+![Screenshot of console output](https://github.com/nlakade/paper_trading_backend/blob/main/logs/Screenshot_20250925_224622.png)  
+![Screenshot of console output](https://github.com/nlakade/paper_trading_backend/blob/main/logs/Screenshot_20250925_224814.png)  
+![Screenshot of console output](https://github.com/nlakade/paper_trading_backend/blob/main/logs/Screenshot_20250925_224851.png)  
+![Screenshot of console output](https://github.com/nlakade/paper_trading_backend/blob/main/logs/Screenshot_20250925_224907.png)  
+![Screenshot of console output](https://github.com/nlakade/paper_trading_backend/blob/main/logs/Screenshot_20250925_234546.png)  
+![Screenshot of console output](https://github.com/nlakade/paper_trading_backend/blob/main/logs/Screenshot_20250925_234941.png)  
+![Screenshot of console output](https://github.com/nlakade/paper_trading_backend/blob/main/logs/Screenshot_20250925_235014.png)  
+![Screenshot of console output](https://github.com/nlakade/paper_trading_backend/blob/main/logs/Screenshot_20250925_235149.png)  
+![Screenshot of console output](https://github.com/nlakade/paper_trading_backend/blob/main/logs/Screenshot_20250925_235326.png)  
+
 
 
 
