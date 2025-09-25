@@ -15,6 +15,11 @@ mongo = PyMongo()
 
 class User:
     @staticmethod
+    def init_indexes():
+        mongo.db.users.create_index('client_id', unique=True)
+        mongo.db.users.create_index('email', unique=True)
+
+    @staticmethod
     def create(client_id, name, email, phone, password):
         return mongo.db.users.insert_one({
             'client_id': client_id,  
@@ -43,9 +48,13 @@ class User:
 
 class Portfolio:
     @staticmethod
+    def init_indexes():
+        mongo.db.portfolios.create_index('user_id', unique=True)
+
+    @staticmethod
     def create(user_id, initial_margin=100000.0):
         return mongo.db.portfolios.insert_one({
-            'user_id': user_id, 
+            'user_id': user_id,  
             'available_margin': initial_margin,
             'utilized_margin': 0.0,
             'total_pnl': 0.0,
@@ -69,6 +78,27 @@ class Portfolio:
         )
 
 class Trade:
+    @staticmethod
+    def init_indexes():
+        mongo.db.trades.create_index([('user_id', 1), ('status', 1)])
+        mongo.db.trades.create_index('symbol')
+        
+    @staticmethod
+    def get_performance_by_user_id(user_id):
+        pipeline = [
+            {'$match': {'user_id': user_id}},
+            {'$group': {
+                '_id': None,
+                'total_trades': {'$sum': 1},
+                'active_trades': {'$sum': {'$cond': [{'$eq': ['$status', 'ACTIVE']}, 1, 0]}},
+                'total_pnl': {'$sum': '$pnl'},
+                'winning_trades': {'$sum': {'$cond': [{'$gt': ['$pnl', 0]}, 1, 0]}},
+                'losing_trades': {'$sum': {'$cond': [{'$lt': ['$pnl', 0]}, 1, 0]}}
+            }}
+        ]
+        result = list(mongo.db.trades.aggregate(pipeline))
+        return result[0] if result else {}    
+
     @staticmethod
     def create(user_id, symbol, trade_type, quantity, entry_price, current_price, margin_used, stop_loss=None, target_price=None):
         return mongo.db.trades.insert_one({
@@ -94,6 +124,10 @@ class Trade:
     @staticmethod
     def find_active_by_user_id(user_id):
         return list(mongo.db.trades.find({'user_id': user_id, 'status': 'ACTIVE'}))
+    
+    @staticmethod
+    def find_all_active():
+        return list(mongo.db.trades.find({'status': 'ACTIVE'}))
     
     @staticmethod
     def update(trade_id, updates):
@@ -125,6 +159,11 @@ class Trade:
             return None
 
 class Notification:
+    @staticmethod
+    def init_indexes():
+        mongo.db.notifications.create_index([('user_id', 1), ('sent_at', -1)])
+        mongo.db.notifications.create_index('is_read')
+
     @staticmethod
     def create(user_id, notification_type, message):
         return mongo.db.notifications.insert_one({
