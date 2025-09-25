@@ -8,7 +8,7 @@ from trades import trades_bp
 from market import market_bp
 from notifications import notifications_bp
 from socket_handler import socketio, start_websocket
-from models import mongo, JSONEncoder
+from models import mongo, JSONEncoder, User, Portfolio, Trade, Notification
 import logging
 import threading
 
@@ -32,16 +32,12 @@ def create_app():
     
     socketio.init_app(app, cors_allowed_origins="*")
     
+    with app.app_context():
+        User.init_indexes()
+        Portfolio.init_indexes()
+        Trade.init_indexes()
+        Notification.init_indexes()
+    
     return app
 
 app = create_app()
-
-if __name__ == '__main__':
-    websocket_thread = threading.Thread(target=start_websocket, args=(app,))
-    websocket_thread.daemon = True
-    websocket_thread.start()
-    
-    try:
-        socketio.run(app, debug=False, host='0.0.0.0', port=5000)
-    except KeyboardInterrupt:
-        logger.info("Server stopped")
