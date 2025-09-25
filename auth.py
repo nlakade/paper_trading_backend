@@ -14,7 +14,7 @@ def validate_email(email):
     return re.match(pattern, email) is not None
 
 def validate_phone(phone):
-    pattern = r'^[6-9]\d{9}$'
+    pattern = r'^\+91[6-9]\d{9}$'
     return re.match(pattern, phone) is not None
 
 @auth_bp.route('/register', methods=['POST'])
@@ -22,7 +22,6 @@ def register():
     try:
         data = request.get_json()
         
-        # Generate client_id if not provided
         data['client_id'] = data.get('client_id', data['email'])
         
         required_fields = ['name', 'email', 'phone', 'password']
@@ -33,8 +32,11 @@ def register():
         if not validate_email(data['email']):
             return jsonify({'error': 'Invalid email format'}), 400
         
-        if not validate_phone(data['phone']):
-            return jsonify({'error': 'Invalid phone number format'}), 400
+        phone = data['phone']
+        if not phone.startswith('+91'):
+            phone = f"+91{phone}" if phone[0] != '+' else phone
+        if not validate_phone(phone):
+            return jsonify({'error': 'Invalid phone number format. Use +91 followed by 10 digits starting with 6-9'}), 400
         
         if User.find_by_client_id(data['client_id']):
             return jsonify({'error': 'Client ID already exists'}), 409
@@ -43,10 +45,11 @@ def register():
             return jsonify({'error': 'Email already exists'}), 409
         
         hashed_password = generate_password_hash(data['password'])
-        result = User.create(data['client_id'], data['name'], data['email'], data['phone'], hashed_password)
-        user_id = str(result.inserted_id)
+        user_id = User.create(data['client_id'], data['name'], data['email'], phone, hashed_password)
+        if not user_id:
+            return jsonify({'error': 'Failed to create user'}), 500
         
-        logger.info(f"New user registered: {data['client_id']}")
+        logger.info(f"New user registered: {data['client_id']} (ID: {user_id})")
         
         return jsonify({
             'message': 'User registered successfully',
